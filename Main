@@ -1,0 +1,186 @@
+#import stuff for game
+
+import pygame
+import sys
+import random
+pygame.init()
+
+
+# sets window
+
+window_width = 600
+window_height = 499
+window = pygame.display.set_mode((window_width, window_height))
+
+# colors
+
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+BLUE = (0, 0, 255)
+CYAN = (0, 255, 255)
+ORANGE = (255, 165, 0)
+YELLOW = (255, 255, 0)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+PURPLE = (128, 0, 128)
+TURQUOISE = (0, 255, 255)
+
+
+# block shapes and color
+SHAPES = 
+[
+    [[1, 1, 1, 1]],  # I
+    [[1, 1, 0],
+     [0, 1, 1]],  # S
+    [[0, 1, 1],
+     [1, 1, 0]],  # Z
+    [[1, 1],
+     [1, 1]],  # O
+    [[1, 0, 0],
+     [1, 1, 1]],  # L
+    [[0, 0, 1],
+     [1, 1, 1]],  # J
+    [[0, 1, 0],
+     [1, 1, 1]]   # T
+]
+SHAPE_COLORS = [CYAN, GREEN, RED, YELLOW, ORANGE, BLUE, PURPLE]
+
+
+#set up grid
+
+GRID_SIZE = 30
+GRID_WIDTH = window_width // GRID_SIZE
+GRID_HEIGHT = window_height // GRID_SIZE
+
+
+#clock for frame rate
+clock = pygame.time.Clock()
+
+#font for text
+font = pygame.font.SysFont("comic sans", 30)
+
+
+#establish variables
+grid = [[0 for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
+game_over = False
+current_piece = None
+current_position = None
+
+
+
+
+def draw_grid():
+    """Draws the grid on the window."""
+    for row in range(GRID_HEIGHT):
+        for col in range(GRID_WIDTH):
+            pygame.draw.rect(window, WHITE, (col * GRID_SIZE, row * GRID_SIZE, GRID_SIZE, GRID_SIZE), 1)
+
+
+def draw_piece(piece, position):
+    """Draws a falling piece on the grid."""
+    shape = piece['shape']
+    color = piece['color']
+    for r in range(len(shape)):
+        for c in range(len(shape[r])):
+            if shape[r][c] == 1:
+                pygame.draw.rect(window, color, ((position[1] + c) * GRID_SIZE, (position[0] + r) * GRID_SIZE, GRID_SIZE, GRID_SIZE))
+
+
+def create_new_piece():
+    """Generates a new random piece."""
+    shape = random.choice(SHAPES)
+    color = SHAPE_COLORS[SHAPES.index(shape)]
+    return {'shape': shape, 'color': color}
+
+
+def check_collision(piece, position):
+    """Checks if the piece collides with other blocks or the boundaries of the grid."""
+    shape = piece['shape']
+    for r in range(len(shape)):
+        for c in range(len(shape[r])):
+            if shape[r][c] == 1:
+                if position[0] + r >= GRID_HEIGHT or position[1] + c < 0 or position[1] + c >= GRID_WIDTH or grid[position[0] + r][position[1] + c] != 0:
+                    return True
+    return False
+
+
+def rotate_piece(piece):
+    """Rotates the piece by 90 degrees."""
+    rotated_shape = list(zip(*piece['shape'][::-1]))
+    return {'shape': [list(row) for row in rotated_shape], 'color': piece['color']}
+
+
+def clear_full_lines():
+    """Clears full lines and shifts everything down."""
+    global grid
+    grid = [row for row in grid if any(col == 0 for col in row)]  # Remove full lines
+    while len(grid) < GRID_HEIGHT:
+        grid.insert(0, [0 for _ in range(GRID_WIDTH)])  # Add empty rows on top
+
+
+def draw_ui():
+    """Draws the UI, including the score and game over message."""
+    if game_over:
+        game_over_text = font.render("Game Over", True, WHITE)
+        window.blit(game_over_text, (window_width // 2 - game_over_text.get_width() // 2, window_height // 2 - game_over_text.get_height() // 2))
+
+
+def main():
+    global current_piece, current_position, game_over
+    current_piece = create_new_piece()
+    current_position = [0, GRID_WIDTH // 2 - len(current_piece['shape'][0]) // 2]  #start at top
+
+
+    while True:
+        window.fill(BLACK)
+        draw_grid()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if not game_over:
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_LEFT:
+                        new_pos = [current_position[0], current_position[1] - 1]
+                        if not check_collision(current_piece, new_pos):
+                            current_position = new_pos
+                    elif event.key == pygame.K_RIGHT:
+                        new_pos = [current_position[0], current_position[1] + 1]
+                        if not check_collision(current_piece, new_pos):
+                            current_position = new_pos
+                    elif event.key == pygame.K_DOWN:
+                        new_pos = [current_position[0] + 1, current_position[1]]
+                        if not check_collision(current_piece, new_pos):
+                            current_position = new_pos
+                    elif event.key == pygame.K_UP:
+                        rotated_piece = rotate_piece(current_piece)
+                        if not check_collision(rotated_piece, current_position):
+                            current_piece = rotated_piece
+
+        # Move the piece down automatically
+        if not game_over:
+            new_pos = [current_position[0] + 1, current_position[1]]
+            if not check_collision(current_piece, new_pos):
+                current_position = new_pos
+            else:
+                # Place the piece on the grid and generate a new piece
+                shape = current_piece['shape']
+                for r in range(len(shape)):
+                    for c in range(len(shape[r])):
+                        if shape[r][c] == 1:
+                            grid[current_position[0] + r][current_position[1] + c] = 1
+                clear_full_lines()
+                current_piece = create_new_piece()
+                current_position = [0, GRID_WIDTH // 2 - len(current_piece['shape'][0]) // 2]  # Restart at the top
+                if check_collision(current_piece, current_position):
+                    game_over = True  # Game over condition if new piece can't spawn
+
+        draw_piece(current_piece, current_position)
+        draw_ui()
+        pygame.display.update()
+        clock.tick(10)  # Adjust the speed of the falling pieces
+
+
+if __name__ == "__main__":
+    main()
